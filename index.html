@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Summarizer</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font and overall body */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        /* Specific styling for the loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl border border-gray-200">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Text Summarizer</h1>
+
+        <!-- Input Text Area -->
+        <div class="mb-6">
+            <label for="inputText" class="block text-lg font-semibold text-gray-700 mb-2">Enter your text here:</label>
+            <textarea id="inputText"
+                      class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out resize-y min-h-[150px]"
+                      placeholder="Paste your long text here to get a summary..."
+                      rows="8"></textarea>
+        </div>
+
+        <!-- Summarize Button -->
+        <button id="summarizeButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 flex items-center justify-center">
+            Summarize Text
+            <div id="loadingIndicator" class="loader ml-3 hidden"></div>
+        </button>
+
+        <!-- Summary Output Area -->
+        <div class="mt-8">
+            <h2 class="text-2xl font-extrabold text-gray-900 mb-4">Summary:</h2>
+            <div id="summaryOutput"
+                 class="bg-gray-50 p-6 rounded-lg border border-gray-200 min-h-[100px] text-gray-800 leading-relaxed text-base">
+                Your summary will appear here.
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Get references to DOM elements
+        const inputText = document.getElementById('inputText');
+        const summarizeButton = document.getElementById('summarizeButton');
+        const summaryOutput = document.getElementById('summaryOutput');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // Event listener for the summarize button
+        summarizeButton.addEventListener('click', async () => {
+            const textToSummarize = inputText.value.trim();
+
+            // Basic validation: check if the input text is not empty
+            if (textToSummarize === '') {
+                summaryOutput.textContent = 'Please enter some text to summarize.';
+                summaryOutput.classList.remove('text-gray-800');
+                summaryOutput.classList.add('text-red-600'); // Indicate an error
+                return;
+            } else {
+                summaryOutput.classList.remove('text-red-600');
+                summaryOutput.classList.add('text-gray-800');
+            }
+
+            // Show loading indicator and disable the button
+            loadingIndicator.classList.remove('hidden');
+            summarizeButton.disabled = true;
+            summaryOutput.textContent = 'Generating summary...'; // Provide immediate feedback
+
+            try {
+                // Construct the prompt for the Gemini API
+                let chatHistory = [];
+                chatHistory.push({
+                    role: "user",
+                    parts: [{ text: `Please summarize the following text concisely:\n\n${textToSummarize}` }]
+                });
+
+                // Prepare the payload for the API request
+                const payload = { contents: chatHistory };
+                const apiKey = "AIzaSyB48mIwH72LQKKbl-96NJR4kjBRhLPh0Jg"; // API key will be provided by the Canvas environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                // Make the API call to Gemini
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                // Check if the response was successful
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorData.error.message}`);
+                }
+
+                const result = await response.json();
+
+                // Extract the summary from the API response
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const summary = result.candidates[0].content.parts[0].text;
+                    summaryOutput.textContent = summary;
+                } else {
+                    summaryOutput.textContent = 'Could not generate a summary. Please try again.';
+                }
+
+            } catch (error) {
+                console.error('Error summarizing text:', error);
+                summaryOutput.textContent = `An error occurred: ${error.message}. Please try again.`;
+                summaryOutput.classList.remove('text-gray-800');
+                summaryOutput.classList.add('text-red-600'); // Indicate an error
+            } finally {
+                // Hide loading indicator and re-enable the button
+                loadingIndicator.classList.add('hidden');
+                summarizeButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
